@@ -1,0 +1,113 @@
+version: '3'
+
+services:
+  adminer:
+    image: adminer
+    ports:
+      - "8080:8080"
+    networks:
+      - authDBNet
+      - shopDBNet
+  shopDB:
+    image: mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=root
+    healthcheck:
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost" ]
+      timeout: 10s
+      retries: 10
+    volumes:
+      - shopData:/var/lib/mysql
+    networks:
+      - shopDBNet
+      - ownerNet
+      - customerNet
+      - courierNet
+  shopDBMigration:
+    image: shopdbmigration
+    environment:
+      - DATABASE_URL=shopDB
+    networks:
+      - shopDBNet
+    depends_on:
+      shopDB:
+        condition: service_healthy
+  owner:
+    image: owner
+    deploy:
+      replicas: 1
+    ports:
+      - "5001:5001"
+    depends_on:
+      - shopDBMigration
+    environment:
+      - DATABASE_URL=shopDB
+    networks:
+      - ownerNet
+  customer:
+    image: customer
+    deploy:
+      replicas: 1
+    ports:
+      - "5002:5002"
+    depends_on:
+      - shopDBMigration
+    environment:
+      - DATABASE_URL=shopDB
+    networks:
+      - customerNet
+  courier:
+    image: courier
+    deploy:
+      replicas: 1
+    ports:
+      - "5003:5003"
+    depends_on:
+      - shopDBMigration
+    environment:
+      - DATABASE_URL=shopDB
+    networks:
+      - customerNet
+  authenticationDB:
+    image: mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=root
+    healthcheck:
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost" ]
+      timeout: 10s
+      retries: 10
+    volumes:
+      - authData:/var/lib/mysql
+    networks:
+      - authDBNet
+  authDBMigration:
+    image: authenticationdbmigration
+    environment:
+      - DATABASE_URL=authenticationDB
+    depends_on:
+      authenticationDB:
+        condition: service_healthy
+    networks:
+      - authDBNet
+  authentication:
+    image: authentication
+    environment:
+      - DATABASE_URL=authenticationDB
+    depends_on:
+      - authDBMigration
+    ports:
+      - "5004:5004"
+    networks:
+      - authDBNet
+
+
+volumes:
+  authData:
+  shopData:
+
+networks:
+  authDBNet:
+  shopDBNet:
+  ownerNet:
+  customerNet:
+  courierNet:
